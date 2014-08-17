@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <script src="http://code.jquery.com/jquery-1.10.2.min.js"></script>
+    <script src="notify.min.js"></script>
+    <style>
+        body {
+            font-family: Tahoma, Geneva, sans-serif;
+            background-color: #e1e1e1 !important;
+        }
+        p {
+            position: absolute;
+            left: 3%;
+            bottom: -1.5%;
+            font-size: 30px;
+            display: inline;
+        }
+        div {
+            display: inline;
+        }
+        .container {
+            position: relative;
+        }
+        .washing {
+            position: relative;
+            width: 33%;
+            height: auto;
+        }
+        .alarm {
+            position: absolute;
+            top: -280px;
+            z-index: 1
+        }
+        #alarm0 {
+            left: 55px;
+            opacity: 0;
+        }
+        #alarm1 {
+            left: 380px;
+            opacity: 0;
+        }
+        #alarm2 {
+            left: 710px;
+            opacity: 0;
+        }
+        #settings {
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+            width: 8%;
+            height: auto;
+            display: inline;
+        }
+        .dots {
+            position: absolute;
+            top: -278.5px;
+            width: 4%;
+            height: auto;
+        }
+        #dot0 {
+            left: 232px;
+        }
+        #dot1 {
+            left: 554px;
+        }
+        #dot2 {
+            left: 876px;
+        }
+        #debug {
+            top: 30px;
+            left: 30px;
+            z-index: 2;
+            color: white;
+            position: absolute;
+        }
+    </style>
+
+</head>
+
+<body>
+    <div class="container">
+        <img class="washing" src="washer.png" />
+        <img id="dot0" class="dots" src="" />
+        <img id="alarm0" class="alarm" src="alarm@2x.png" />
+        <img class="washing" src="washer.png" />
+        <img id="dot1" class="dots" src="" />
+        <img id="alarm1" class="alarm" src="alarm@2x.png" />
+        <img class="washing" src="washer.png" />
+        <img id="dot2" class="dots" src="" />
+        <img id="alarm2" class="alarm" src="alarm@2x.png" />
+    </div>
+    <img id="settings" src="cogwheel@2x.png" />
+    <p id='user'>Logged in as:</p>
+</body>
+<script>
+    var host = window.document.location.host.replace(/:.*/, '');
+    var timeStamp = 0;
+    var d = new Date();
+    var ws = new WebSocket('ws://' + host + ':8080');
+    ws.onopen = function() {
+        checkNameCookie();
+        checkPushoverCookie();
+    }
+    ws.onmessage = function(event) {
+        if (event.data.toString().indexOf("machineStates") != -1) {
+            checkMachines(JSON.parse(event.data));
+        }
+
+        if (event.data.toString().indexOf("notify") != -1) {
+            settingsParse(JSON.parse(event.data));
+        }
+        timeStamp = d.getTime() / 1000;
+        //document.getElementById('debug').innerHTML = event.data.toString();
+        //console.log(JSON.parse(event.data));
+        //console.log(event.toString());
+    }
+
+    setInterval(function() {
+        d = new Date()
+        if (timeStamp < (d.getTime() / 1000) - 5) {
+            location.reload();
+        }
+    }, 300);
+
+    $("#settings").click(function() {
+        var r = confirm("M\u00F6chtest du deinen Pushover API Key \u00E4ndern?");
+        if (r == true) {
+            pushoverKey = prompt("Gib deinen Pushover API Key ein:", "");
+            console.log(pushoverKey.length);
+            if ((pushoverKey != "") && (pushoverKey != null) && (pushoverKey.length == 30)) {
+                var updateKey = {
+                    "Update": user,
+                    "action": "pushoverKey",
+                    "pushoverKey": pushoverKey
+                }
+                ws.send(JSON.stringify(updateKey));;
+            } else {
+                alert("Ungültiger Key, bitte probier es nochmal");
+            }
+        }
+    });
+
+    document.getElementsByClassName("washing")[0].onclick = function() {
+        if ($("#alarm0").css("opacity") == "1") {
+            checkAlarm(0, 0);
+            $.notify('I will no longer remind you of this machine', {
+                style: 'infoCustom',
+                globalPosition: 'bottom left',
+                className: 'info'
+            });
+        } else {
+            checkAlarm(0, 1);
+            $.notify('I will remind you when this machines is done', {
+                style: 'infoCustom',
+                globalPosition: 'bottom left',
+                className: 'success'
+            });
+        }
+    }
+    document.getElementsByClassName("washing")[1].onclick = function() {
+        if ($("#alarm1").css("opacity") == "1") {
+            checkAlarm(1, 0);
+            $.notify('I will no longer remind you of this machine', {
+                style: 'infoCustom',
+                globalPosition: 'bottom left',
+                className: 'info'
+            });
+        } else {
+            checkAlarm(1, 1);
+            $.notify('I will remind you when this machines is done', {
+                style: 'infoCustom',
+                globalPosition: 'bottom left',
+                className: 'success'
+            });
+        }
+    }
+    document.getElementsByClassName("washing")[2].onclick = function() {
+        if ($("#alarm2").css("opacity") == "1") {
+            checkAlarm(2, 0);
+            $.notify('I will no longer remind you of this machine', {
+                style: 'infoCustom',
+                globalPosition: 'bottom left',
+                className: 'info'
+            });
+        } else {
+            checkAlarm(2, 1);
+            $.notify('I will remind you when this machines is done', {
+                style: 'infoCustom',
+                globalPosition: 'bottom left',
+                className: 'success'
+            });
+        }
+    }
+
+    function settingsParse(settings) {
+        checkAlarm(0, settings.notify.m0);
+        checkAlarm(1, settings.notify.m1);
+        checkAlarm(2, settings.notify.m2);
+        if (settings.pushoverKey != "none") {
+            if (settings.pushoverKey == "") {
+                pushoverKey = prompt("(Optional) Gib deinen Pushover API Key ein:", "");
+                if (pushoverKey != "" && pushoverKey != null) {
+                    var updateKey = {
+                        "Update": user,
+                        "action": "pushoverKey",
+                        "pushoverKey": pushoverKey
+                    }
+                    ws.send(JSON.stringify(updateKey));
+                } else {
+                    var r = confirm("In Zukunft nicht mehr Fragen?");
+                    if (r == true) {
+                        var updateKey = {
+                            "Update": user,
+                            "action": "pushoverKey",
+                            "pushoverKey": "none"
+                        }
+                        ws.send(JSON.stringify(updateKey));
+                    }
+                }
+            }
+        }
+    }
+
+    function checkAlarm(machine, state) {
+        if (state == 0) {
+            $("#alarm" + machine).css("opacity", "0");
+
+        } else {
+            $("#alarm" + machine).css("opacity", "1");
+        }
+        var update = {
+            "Update": user,
+            "action": "notify",
+            "notify": {
+                "m0": $("#alarm0").css("opacity"),
+                "m1": $("#alarm1").css("opacity"),
+                "m2": $("#alarm2").css("opacity")
+            }
+        }
+        ws.send(JSON.stringify(update));
+    }
+
+    function checkMachines(status) {
+        if (status.machineStates.m0 == 1) {
+            $("#dot0").attr("src", "green.png");
+        } else {
+            $("#dot0").attr("src", "red.png");
+        }
+        if (status.machineStates.m1 == 1) {
+            $("#dot1").attr("src", "green.png");
+        } else {
+            $("#dot1").attr("src", "red.png");
+        }
+        if (status.machineStates.m2 == 1) {
+            $("#dot2").attr("src", "green.png");
+        } else {
+            $("#dot2").attr("src", "red.png");
+        }
+    }
+
+    function setCookie(cname, cvalue, exdays) {
+        var d = new Date();
+        d.setTime(d.getTime() + (exdays * 24 * 60 * 60 * 1000));
+        var expires = "expires=" + d.toGMTString();
+        document.cookie = cname + "=" + cvalue + "; " + expires;
+    }
+
+    function getCookie(cname) {
+        var name = cname + "=";
+        var ca = document.cookie.split(';');
+        for (var i = 0; i < ca.length; i++) {
+            var c = ca[i].trim();
+            if (c.indexOf(name) == 0) return c.substring(name.length, c.length);
+        }
+        return "";
+    }
+
+    function checkNameCookie() {
+        user = getCookie("username");
+        if (user != "") {
+            document.getElementById('user').innerHTML += user;
+            ws.send("User:" + user);
+        } else {
+            user = prompt("Gib deinen Vornamen ein:", "");
+            if (user != "" && user != null) {
+                setCookie("username", user, 365 * 3);
+                ws.send("User:" + user);
+                document.getElementById('user').innerHTML += user;
+            }
+        }
+    }
+
+    function checkPushoverCookie() {
+        /*pushoverKey = prompt("(Optional) Gib deinen Pushover API Key ein:","");
+			if (pushoverKey!="" && pushoverKey!=null){
+				ws.send("User:"+pushoverKey);
+			}else{
+				var r=confirm("In Zukunft nicht mehr Fragen?");
+				if (r==false){
+					pushoverKey = prompt("Gib deinen Pushover API Key ein:","");
+				}
+			}*/
+    }
+
+    $.notify.addStyle('infoCustom', {
+        html: "<div><span data-notify-text/></div>",
+        classes: {
+            base: {
+                "font-weight": "bold",
+                "padding": "8px 15px 8px 14px",
+                "background-color": "#fcf8e3",
+                "border": "1px solid #fbeed5",
+                "border-radius": "14px",
+                "white-space": "nowrap",
+                "font-size": "30px",
+                "padding-left": "39px",
+                "background-repeat": "no-repeat",
+                "background-position": "5px 13.5px",
+                "background-size": "30px 30px"
+            },
+            success: {
+                "color": "#232323",
+                "background-color": "#d5d5d5",
+                "border-color": "#909090",
+                "background-image": "url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAYAAAAeP4ixAAAB6ElEQVR42u2a0dGEIAyE7cASrgRLsARLsIQrwVIoxRKuBEuwBI4HZ/ZBfxYS958bRmf26ZTjIyGEQBdjvF3peSWNf+il+M+7Oj4kLUlrUizUenwzaEF45/ujI1tSdGo72uoFIBRgdwOctVuBaiEmA4AVaLKBcCsEOcBZodQ6pRCff4eAPiUwNBrBlaqj0XQReqeq6AbtLLoxS+wVUWemI3duf66IenuufYc7AcC7BgDI4GYEJNw4Ee8OKIGDIMRGImIFt3Ui0ZQFwbzQQ3AYPl9yIIsAQgWzXIDAGlW+qYcJpVbh1kB06kXp/vuybQzuRqxyAtkULsUXW4RVg4ttAEGj5GUZRCQwbJAHgOTdalZCUBhulQUg+dynV0FwGMyVXG4HEPKSFIJ7AR3s4/fuRcymheAWoe5/MHRj5oWxsJNr0iyAKE2dxjoQ3slZAZGEfnpBOARgPBAyEKO7LC4IPQggBPtxKch00eBbDWGZ7Kbwm56ghqgNv8YFETB6CL4gOlIUwOgheIriTBoBI4CwJI3+NB4wfghzGu/fWAFGAEE3VoKtLmAsENatrqT4ABhAqIsPunIQVuFeXQ5qpkDXRMm0iSJ2W8cK7R/06I/e3Edvz2HorxxPPxcGfuEKx3OppoFrTm1cPPsCuuxhB1ecn94AAAAASUVORK5CYII=)"
+            },
+            info: {
+                "color": "#232323",
+                "background-color": "#a7a7a7",
+                "border-color": "#909090",
+                "background-image": "url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAYAAAAeP4ixAAABuklEQVR42u2a4a2EIBCE7YASLMESLIESKIVSKOFKsIQrwRIogbc/SLzEO2fnAtHbp8n8EpTPhVkEhlJKc8k1iuYPGnu8s1XDJ1EULaKi1FLrTKeCyOVqQ1bYaKy1Psu1B8EAWVQaK38LxEJ4ANASyHMg+iik7gB7JW10tBBPUTlJTw0MdKOtK9Fu5N9Yr2fdrSojd0ORyITrBJEjTSMQrpePng+6kw6gQR6qQGw3wyCp4UBsbSgJg2wWW4C4KPDRKUA7a4bjAkP0h8HjZQ8SaYjN3RaRJ5PrQzR9CRN3IMpoJKVFB/KL5wOYpI2KNhqryBF5JmggEIxcDrhZ3IGACgFAaOsElPTIOusGUhsFCgMIAAMaBGDQR55eQSLzZckpRqgqSi1kVGIFgQ1zINe0ln83VgB4BQGFWHvEwtFnekG9P4wobACmMwR21cowzAcFZiInNIUgu/NMgHSDCcp3zF1BMAyGuEH+Y9fyvzLYzdiviYRocIrCTxofV5o0mpnGm/ixMvOra2zx4fzloKXBcpCBBToLS6YmFrHNbCuY2OgxsfV2b4ZeZXv6PjBwhSMc96EaA8ecbBw8+wMWkzDEf3e1TQAAAABJRU5ErkJggg==)"
+            }
+        }
+    });
+    $('img').on('dragstart', function(event) {
+        event.preventDefault();
+    });
+</script>
+
+</html>
